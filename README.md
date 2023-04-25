@@ -60,7 +60,7 @@ To browse ready to use code samples check [Incode Samples](https://github.com/In
 
 The [Vanilla Example][vanilla_sample] is a frontend sample written without frameworks.  It's a vanilla example of our Web SDK.
 
-The [Vanilla Example][react_sample] is a frontend React JS implementation sample.
+The [React Example][react_sample] is a frontend React JS implementation sample.
 
 [vanilla_sample]: https://github.com/IncodeTechnologies/web-sdk-example
 [react_sample]: https://github.com/IncodeTechnologies/welcome-react-example
