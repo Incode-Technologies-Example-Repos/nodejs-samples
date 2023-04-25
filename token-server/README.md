@@ -10,6 +10,10 @@ This sample uses the global fetch API so you must use Node 18 or higher.
 
 ## Local Development
 
+### Environment
+
+* Rename sample.env file to .env adding your subscription info.
+
 ### Using NPM
 
 ```
