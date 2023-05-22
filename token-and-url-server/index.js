@@ -1,6 +1,8 @@
 const express = require('express');
 const dotenv = require('dotenv');
 const cors = require('cors');
+const fs = require('fs');
+const https = require('https');
 
 const app = express();
 dotenv.config();
@@ -63,9 +65,20 @@ app.get('/startup', async (req, res) => {
 });
 
 const httpPort = parseInt(process.env.HTTP_PORT) || 3000;
+const httpsPort = parseInt(process.env.HTTP_PORT) || 3001;
 
 app.listen(httpPort, () => {
   console.log(`HTTP listening on port ${httpPort}`);
+});
+
+https.createServer(
+  {
+    key: fs.readFileSync("./key.pem"),
+    cert: fs.readFileSync("./cert.pem")
+  },
+  app
+).listen(httpsPort, () => {
+  console.log(`HTTPS listening on port ${httpsPort}`);
 });
 
 module.exports = app;
