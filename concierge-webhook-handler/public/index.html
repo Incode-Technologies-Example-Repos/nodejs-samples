@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="styles/bootstrap.min.css">
+    <link rel="stylesheet" href="styles/client.css">
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/2.0.2/anime.min.js"></script>
+    <script>
+        const socket = io();
+        var winWidth = window.innerWidth * 0.5;
+        var winHeight = window.innerHeight * 0.8;
+
+        const welcomeSamples = ['Welcome', 'வரவேற்பு', 'مرحباً', 'Bem-Vindo', 'いらっしゃいませ', '欢迎']
+
+        function getRandomNumber(min, max) {
+            let rand = Math.random() * (max - min);
+            console.log(min, max, rand)
+            return rand
+
+        }
+
+        makeid = (length) => {
+            let result = '';
+            const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+            const charactersLength = characters.length;
+            let counter = 0;
+            while (counter < length) {
+                result += characters.charAt(Math.floor(Math.random() * charactersLength));
+                counter += 1;
+            }
+            return result;
+        }
+
+
+
+        effect1 = (content, parent) => {
+
+
+            const newElement = document.createElement("h1");
+            const className = `ml2-${makeid(10)}`
+            newElement.className = `ml2 ${className}`
+            const newContent = content.replace(/\S/g, "<span class='letter'>$&</span>");
+            //newContent.innerHTML = newContent.textContent;
+            newElement.innerHTML = newContent
+            //newElement.appendChild(newContent)
+            document.getElementById(parent).innerHTML = ''
+            document.getElementById(parent).appendChild(newElement)
+
+            anime.timeline({ loop: true })
+                .add({
+                    targets: `.${className} .letter`,
+                    scale: [4, 1],
+                    opacity: [0, 1],
+                    translateZ: 0,
+                    easing: "easeOutExpo",
+                    duration: 950,
+                    delay: (el, i) => 70 * i
+                }).add({
+                    targets: '.ml2',
+                    opacity: 0,
+                    duration: 1000,
+                    easing: "easeOutExpo",
+                    delay: 1000
+                });
+            return newElement;
+
+        }
+
+
+
+        // client-side
+        socket.on("connect", () => {
+            console.log(socket.id); // x8WIv7-mJelg7on_ALbx
+        });
+
+        socket.on("disconnect", () => {
+            console.log(socket.id); // undefined
+        });
+
+        socket.on("new person", (data) => {
+            //document.getElementById('image-holder').src = data.image
+            //document.getElementById('interview-id').innerText = data.name
+            const content = `<span class="icon"><img src="./img/person.png"/></span> ${data.name}`
+            const personSpan = document.createElement("span");
+            personSpan.className = 'person'
+            personSpan.innerHTML = content
+            document.getElementById('welcome-list').appendChild(personSpan)
+
+            // setTimeout(() => {
+            //     personSpan.remove()
+            // }, 5000)
+
+        });
+
+        updateWelcomeMessage = (container) => {
+            const welcome = welcomeSamples[Math.floor(Math.random() * welcomeSamples.length)];
+            effect1(welcome, container)
+        }
+
+        setInterval(() => updateWelcomeMessage('card-title'), 2000)
+
+    </script>
+</head>
+
+<body>
+    <nav class="navbar navbar-expand-md fixed-top bg-white shadow-sm">
+        <div class="container">
+            <img src="img/logo.svg" class="logo" />
+        </div>
+    </nav>
+    <main>
+        <div class="container">
+            <div class="col-4">
+                <div class="card" style="width: 26rem;">
+                    <img class="card-img-top" src="./img/card-image.png" alt="Card image cap">
+                    <div class="card-body">
+                        <h5 class="card-title" id="card-title">Welcome</h5><br />
+                        <p class="card-text">A member of our team will be with you shortly to assist with check-in.</p>
+                        <!-- <a href="#" class="btn btn-primary">Go somewhere</a> -->
+                    </div>
+                </div>
+            </div>
+            <div class="col-8">
+                <div class="card" style="width: 50rem;">
+                    <div class="card-body">
+                        <p class="card-text" id="welcome-list">
+
+                        </p>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+    <footer>
+        <div class="container">
+            <img src="img/Powered Black.svg" class="footer-logo mx-auto d-block" alt="Powered By Incode" />
+        </div>
+
+    </footer>
+</body>
+
+</html>
