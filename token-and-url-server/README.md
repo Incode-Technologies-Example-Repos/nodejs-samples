@@ -31,7 +31,7 @@ npm install
 npm start
 ```
 
-Will accept on `http://localhost:3000/` and `https://localhost:3001/`
+Will accept petitions on `http://localhost:3000/` and `https://localhost:3001/`
 
 ### Using Docker
 
@@ -40,7 +40,7 @@ docker-compose build
 docker-compose --env-file ./.env up
 ```
 
-Will accept on `http://localhost:3000/` and `https://localhost:3001/`
+Will accept petitions on `http://localhost:3000/` and `https://localhost:3001/`
 
 ## Dependencies
 
