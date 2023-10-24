@@ -6,6 +6,7 @@ services:
             dockerfile: Dockerfile
 
         ports:
-            - "8080:3000"
+            - "3000:3000"
+            - "3001:3001"
         
-        container_name: incode-nodejs-token-server
+        container_name: incode-nodejs-token-and-url-server
