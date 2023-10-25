@@ -7,6 +7,12 @@ const https = require('https');
 const app = express();
 dotenv.config();
 
+const defaultHeader = {
+    'Content-Type': "application/json",
+    'x-api-key': process.env.API_KEY,
+    'api-version': '1.0'
+}
+
 app.use(cors())
 
 app.get('/start', async (req, res) => {
@@ -48,36 +54,22 @@ app.get('/onboarding-url', async (req, res) => {
 
 // Utility functions
 const doPost = async (url, params, header) => {
-  if (!header) {
-    header = {
-      'Content-Type': "application/json",
-      'x-api-key': process.env.API_KEY,
-      'api-version': '1.0'
-    };
-  }
-
+  header = header||defaultHeader;
   try {
     const response = await fetch(url, { method: 'POST', body: JSON.stringify(params), headers: header });
     return response.json();
   } catch (e) {
-    console.log(`Atention:  HTTPPOST error.`, e);
+    console.log(`Warning:  HTTPPOST error.`, e);
   }
 }
 
 const doGet = async (url, params, header) => {
-  if (!header) {
-    header = {
-      'Content-Type': "application/json",
-      'X-Incode-Hardware-Id': process.env.API_KEY,
-      'api-version': '1.0'
-    };
-  }
-
+  header = header||defaultHeader;
   try {
     const response = await fetch(`${url}?` + new URLSearchParams(params), { headers: header });
     return response.json();
   } catch (e) {
-    console.log(`Attention:  HTTPGET error.`, e);
+    console.log(`Warning:  HTTPGET error.`, e);
   }
 }
 
