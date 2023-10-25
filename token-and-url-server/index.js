@@ -22,12 +22,16 @@ app.get('/start', async (req, res) => {
 });
 
 app.get('/onboarding-url', async (req, res) => {
+  // Enable the server to receive the url to redirect at the end of the flow
+  const redirectUrl=req.query.redirectUrl||undefined;
   const startUrl = `${process.env.API_URL}/omni/start`;
   const startParams = {
     configurationId: process.env.FLOW_ID,
     countryCode: "ALL",
-    language: "en-US"
+    language: "en-US",
+    redirectUrl // Enable the server to receive the url to redirect at the end of the flow
   };
+
   const startData = await doPost(startUrl, startParams);
   
   const onboardingHeader = {
