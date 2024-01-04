@@ -74,10 +74,38 @@ Now you should be able to visit the following routes to receive the associated p
 2. `https://yourforwardingurl.app/onboarding-url`
 3. `https://yourforwardingurl.app/onboarding-url?redirectionUrl=https%3A%2F%2Fexample.com%2F`
 
-## Webhook
+## Webhooks
+
+### Simplified Webhook
+`https://yourforwardingurl.app/webhook`
 We provide an example on how to read the data we send in the webhook calls, from here you could
 fetch scores and OCR data, what you do with that is up to you.
 
+### Auto approve on PASS
+`https://yourforwardingurl.app/approve`
+We provide a more complex example where we fetch the scores and if the status is `OK` we then
+approve the user to create his identity for face-login
+
+### Admin Token
+For the approval and fetching of scores to work you will need an Admin Token, Admin tokens
+require an executive user-password and have a 24 hour expiration, thus need a
+more involved strategy to be generated, renewed, securely saved and shared to the app.
+
+For this simple test just use the following cURl, and add the generated token to the `.env` file,
+you will need to refresh it after 24 hours.
+
+```bash
+curl --location 'https://demo-api.incodesmile.com/executive/log-in' \
+--header 'Content-Type: application/json' \
+--header 'api-version: 1.0' \
+--header 'x-api-key: <your-apikey>' \
+--data '{
+    "email": "••••••",
+    "password": "••••••"
+}'
+```
+
+### How to test your code
 To recreate the call and the format of the data sent by Incode you can use the following script:
 
 ```bash
