@@ -10,10 +10,12 @@ It can receive the optional query parameter `redirectUrl` to set where to redire
 
 - POST `/webhook`: Example webhook that reads the json data and return it back a response, from here you could fetch scores or OCR data when the status is ONBOARDING_FINISHED
 
+- POST `/approve`: Example webhook that reads the json data and if the status is ONBOARDING_FINISHED goes ahead and creates the identity using the `/omni/process/approve` endpoint.
+
 ## Secure Credential Handling
 We highly recommend to follow the 0 rule for your implementations, where all sensitive calls to incode's endpoints are done in the backend, keeping your apikey protected and just returning a `token` with the user session to the frontend.
 
-Within this sample you will find the only call to a `/omni/` endpoint we recommend for you to have, it requires the usage of the `apikey`, all further calls must be done using only the generated `token` and be addresed to the `/0/omni` endpoints. 
+Within this sample you will find the only calls to a `/omni/` endpoints we recommend for you to have, it requires the usage of the `apikey`, all further calls must be done using only the generated `token` and be addresed to the `/0/omni` endpoints. 
 
 ## Prerequisites
 This sample uses the global fetch API so you must use [Node 18](https://nodejs.org/en) or higher.
@@ -28,6 +30,7 @@ API_URL=https://demo-api.incodesmile.com
 API_KEY=you-api-key
 CLIENT_ID=your-client-id
 FLOW_ID=Flow Id from your Incode dashboard.
+ADMIN_TOKEN=Needed for the webhooks to be able to fetch Scores and auto-approve
 ```
 
 ### Using NPM
