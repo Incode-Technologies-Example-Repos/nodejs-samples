@@ -65,6 +65,7 @@ app.post('/webhook', async (req, res) => {
     // and include the timestamp)
     response = {
       timestamp: new Date().toISOString().slice(0, 19).replace('T', ' '),
+      success: true,
       data: webhookData
     }
     res.status(200).send(response);
@@ -126,7 +127,7 @@ app.post('/approve', async (req, res) => {
     } else {
        response = {
          timestamp: new Date().toISOString().slice(0, 19).replace('T', ' '),
-         sucess: false,
+         success: false,
          error: "Session didn't PASS, identity was not created"
        }
        res.status(200).send(response);
@@ -138,6 +139,7 @@ app.post('/approve', async (req, res) => {
     // and include the timestamp)
     response = {
       timestamp: new Date().toISOString().slice(0, 19).replace('T', ' '),
+      success: true,
       data: JSON.parse(webhookData.toString())
     }
     res.status(200).send(response);
