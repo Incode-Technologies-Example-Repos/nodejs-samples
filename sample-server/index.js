@@ -10,6 +10,12 @@ app.use(cors())
 // Middleware to handle raw body data
 app.use(express.raw({ type: '*/*' }));
 
+const defaultHeader = {
+  'Content-Type': "application/json",
+  'x-api-key': process.env.API_KEY,
+  'api-version': '1.0'
+};
+
 // Call Incode's `omni/start` API to create an Incode session which will include a
 // token in the JSON response.
 app.get('/start', async (req, res) => {
@@ -19,7 +25,7 @@ app.get('/start', async (req, res) => {
     countryCode: "ALL",
     language: "en-US"
   };
-  const startData = await doPost(startUrl, startParams);
+  const startData = await doPost(startUrl, startParams, defaultHeader);
   const {token, interviewId} = startData;
   res.json({token, interviewId});
 });
@@ -40,7 +46,7 @@ app.get('/onboarding-url', async (req, res) => {
     startParams.redirectionUrl = redirectionUrl
   }
 
-  const startData = await doPost(startUrl, startParams);
+  const startData = await doPost(startUrl, startParams, defaultHeader);
   
   const onboardingHeader = {
     'Content-Type': "application/json",
@@ -149,6 +155,26 @@ app.post('/approve', async (req, res) => {
   }
 });
 
+// Receives the information about a faceMatch attempt and verifies
+// if it was correct and has not been tampered.
+app.post('/auth', async (req, res) => {
+  const faceMatchData = JSON.parse(req.body.toString());
+  const {transactionId, token, interviewToken} = faceMatchData;
+  const verifyAttemptUrl = `${process.env.API_URL}/omni/auth-attempt/verify`;
+  
+  const params = { transactionId, token, interviewToken };
+  const verificationData = await doPost(verifyAttemptUrl, params, defaultHeader);
+
+  log = {
+    timestamp: new Date().toISOString().slice(0, 19).replace('T', ' '),
+    data: {...params,...verificationData}
+  }
+  res.status(200).send(verificationData);
+
+  // Write to a log so you can debug it.
+  console.log(log);
+});
+
 
 
 app.get('*', function(req, res){
@@ -161,7 +187,6 @@ app.post('*', function(req, res){
 
 // Utility functions
 const doPost = async (url, bodyparams, headers) => {
-  headers = headers;
   try {
     const response = await fetch(url, { method: 'POST', body: JSON.stringify(bodyparams), headers});
     return response.json();
