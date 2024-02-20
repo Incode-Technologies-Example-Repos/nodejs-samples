@@ -29,7 +29,7 @@ Rename `sample.env` file to `.env` adding your subscription information:
 API_URL=https://demo-api.incodesmile.com
 API_KEY=you-api-key
 CLIENT_ID=your-client-id
-FLOW_ID=Flow Id from your Incode dashboard.
+FLOW_ID=Flow or Workflow Id from your Incode dashboard.
 ADMIN_TOKEN=Needed for the webhooks to be able to fetch Scores and auto-approve
 ```
 
