@@ -6,8 +6,6 @@
 
 - GET `/onboarding-url`: Calls incodes `/omni/start` and then with the token calls `/0/omni/onboarding-url` to retrieve the unique onboarding-url for the newly created session.
 
-It can receive the optional query parameter `redirectUrl` to set where to redirect the user at the end of the flow.
-
 - POST `/auth`: Receives the information about a faceMatch attempt and verifies if it was correct and has not been tampered.
 
 - POST `/webhook`: Example webhook that reads the json data and return it back a response, from here you could fetch scores or OCR data when the status is ONBOARDING_FINISHED

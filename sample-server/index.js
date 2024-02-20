@@ -37,14 +37,10 @@ app.get('/onboarding-url', async (req, res) => {
   const startParams = {
     configurationId: process.env.FLOW_ID,
     countryCode: "ALL",
-    language: "en-US"
+    language: "en-US",
+    // redirectionUrl: "https://example.com?custom_parameter=some+value",
+    // externalCustomerId: "the id of the customer in your system",
   };
-
-  // Enable the server to receive the url to redirect at the end of the flow
-  const redirectionUrl=req.query.redirectionUrl||undefined;
-  if(redirectionUrl !=='') { 
-    startParams.redirectionUrl = redirectionUrl
-  }
 
   const startData = await doPost(startUrl, startParams, defaultHeader);
   
@@ -67,6 +63,30 @@ app.post('/webhook', async (req, res) => {
     // Handle the received webhook data
     const webhookData = JSON.parse(req.body.toString());
   
+    // Last Step of the onboarding, now you can ask for the score.
+    if(webhookData.onboardingStatus==="ONBOARDING_FINISHED"){
+      console.log('User finished onboarding');
+      // Admin Token + ApiKey are needed for approving and fetching scores
+      const adminHeaders = {
+        'Content-Type': "application/json",
+        'x-api-key': process.env.API_KEY,
+        'X-Incode-Hardware-Id': process.env.ADMIN_TOKEN,
+        'api-version': '1.0'
+      };
+  
+      const scoreUrl = `${process.env.API_URL}/omni/get/score`;
+      const onboardingScore = await doGet(scoreUrl, {id:webhookData.interviewId}, adminHeaders);
+      
+      // Onboarding Score has a lot of information that might interest you
+      // https://docs.incode.com/docs/omni-api/api/onboarding#fetch-scores
+    
+      if (onboardingScore.overall.status==='OK'){
+        console.log('User passed with OK');
+        // Session passed with OK here you would procced to save user data into your database or
+        // any other process your bussiness logic requires.
+      }
+    }
+    
     // Process received data (for demonstration, just returning the received payload
     // and include the timestamp)
     response = {
