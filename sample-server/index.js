@@ -23,7 +23,9 @@ app.get('/start', async (req, res) => {
   const startParams = {
     configurationId: process.env.FLOW_ID,
     countryCode: "ALL",
-    language: "en-US"
+    language: "en-US",
+    // redirectionUrl: "https://example.com?custom_parameter=some+value",
+    // externalCustomerId: "the id of the customer in your system",
   };
   const startData = await doPost(startUrl, startParams, defaultHeader);
   const {token, interviewId} = startData;
