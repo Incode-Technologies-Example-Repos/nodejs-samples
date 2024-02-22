@@ -1,7 +1,7 @@
 const express = require('express');
 const dotenv = require('dotenv');
 const cors = require('cors');
-const fs = require('fs');
+const { writeFileSync, readFileSync } = require('fs');
 
 const app = express();
 dotenv.config();
@@ -35,6 +35,7 @@ app.get('/start', async (req, res) => {
 // Calls incodes `omni/start` and then with the token calls `0/omni/onboarding-url`
 // to retrieve the unique onboarding-url for the newly created session.
 app.get('/onboarding-url', async (req, res) => {
+  
   const startUrl = `${process.env.API_URL}/omni/start`;
   const startParams = {
     configurationId: process.env.FLOW_ID,
@@ -45,7 +46,12 @@ app.get('/onboarding-url', async (req, res) => {
   };
 
   const startData = await doPost(startUrl, startParams, defaultHeader);
-  
+  const {token, interviewId} = startData;
+
+  const sessionObject = {interviewId, token, finished:false};
+
+  writeSessionObject(sessionObject);
+
   const onboardingHeader = {
     'Content-Type': "application/json",
     'X-Incode-Hardware-Id': startData.token,
@@ -55,8 +61,18 @@ app.get('/onboarding-url', async (req, res) => {
   const onboardingParams = { clientId: process.env.CLIENT_ID }
   const onboardingUrlData = await doGet(onboardingUrl,onboardingParams, onboardingHeader);
   
-  session ={ token: startData.token, interviewId: startData.interviewId, url: onboardingUrlData.url }
+  session ={ token, interviewId, url: onboardingUrlData.url }
   res.json(session);
+});
+
+// Checks if an onboarding has been finished against a local method of Storage
+app.get('/is-onboarding-finished', async (req, res) => {
+  sessionObject = readSessionObject(req.query.interviewId);
+  if (sessionObject) {  
+    res.json({'success': true, 'finished': sessionObject.finished});
+  } else {
+    res.json({'success': false, 'error': 'interviewId doesnt exists'});
+  }
 });
 
 // Webhook to receive onboarding status, configure it in
@@ -84,8 +100,15 @@ app.post('/webhook', async (req, res) => {
     
       if (onboardingScore.overall.status==='OK'){
         console.log('User passed with OK');
+
         // Session passed with OK here you would procced to save user data into your database or
         // any other process your bussiness logic requires.
+        
+        sessionObject = readSessionObject(webhookData.interviewId);
+        sessionObject.score=onboardingScore;
+        sessionObject.finished=true;
+
+        writeSessionObject(sessionObject);
       }
     }
     
@@ -225,6 +248,27 @@ const doGet = async (url, params, headers) => {
     return response.json();
   } catch (e) {
     console.log(`Warning:  HTTPGET error.`, e);
+  }
+}
+
+const writeSessionObject = (sessionObject) => {
+  const {interviewId} = sessionObject;
+  const path = `./sessions/${interviewId}.json`;
+  try {
+    writeFileSync(path, JSON.stringify(sessionObject, null, 2), 'utf8');
+    console.log('Data successfully saved to disk');
+  } catch (error) {
+    console.log('An error has occurred ', error);
+  }
+}
+
+const readSessionObject = (interviewId) => {
+  const path = `./sessions/${interviewId}.json`;
+  try {
+    const data = readFileSync(path);
+    return JSON.parse(data);
+  } catch (error) {
+    return false;
   }
 }
 
