@@ -57,10 +57,9 @@ app.get('/onboarding-url', async (req, res) => {
     'X-Incode-Hardware-Id': startData.token,
     'api-version': '1.0'
   };
+
   const onboardingUrl = `${process.env.API_URL}/0/omni/onboarding-url`;
-  const onboardingParams = { clientId: process.env.CLIENT_ID }
-  const onboardingUrlData = await doGet(onboardingUrl,onboardingParams, onboardingHeader);
-  
+  const onboardingUrlData = await doGet(onboardingUrl, {}, onboardingHeader);
   session ={ token, interviewId, url: onboardingUrlData.url }
   res.json(session);
 });
@@ -242,7 +241,6 @@ const doPost = async (url, bodyparams, headers) => {
 
 const doGet = async (url, params, headers) => {
   headers = headers;
-  console.log({url: `${url}?` + new URLSearchParams(params), headers})
   try {
     const response = await fetch(`${url}?` + new URLSearchParams(params), {method: 'GET', headers});
     return response.json();
