@@ -44,20 +44,21 @@ app.get('/onboarding-url', async (req, res) => {
     // redirectionUrl: "https://example.com?custom_parameter=some+value",
     // externalCustomerId: "the id of the customer in your system",
   };
-
+  
   const startData = await doPost(startUrl, startParams, defaultHeader);
   const {token, interviewId} = startData;
-
+  
   const sessionObject = {interviewId, token, finished:false};
-
+  
   writeSessionObject(sessionObject);
-
+  
   const onboardingHeader = {
     'Content-Type': "application/json",
     'X-Incode-Hardware-Id': startData.token,
+    'x-api-key': process.env.API_KEY,
     'api-version': '1.0'
   };
-
+  
   const onboardingUrl = `${process.env.API_URL}/0/omni/onboarding-url`;
   const onboardingUrlData = await doGet(onboardingUrl, {}, onboardingHeader);
   session ={ token, interviewId, url: onboardingUrlData.url }
@@ -68,7 +69,20 @@ app.get('/onboarding-url', async (req, res) => {
 app.get('/is-onboarding-finished', async (req, res) => {
   sessionObject = readSessionObject(req.query.interviewId);
   if (sessionObject) {  
-    res.json({'success': true, 'finished': sessionObject.finished});
+    if(sessionObject?.error){
+      res.json({
+        'success': false,
+        'finished': sessionObject.finished,
+        'error': sessionObject?.error,
+        'passed': sessionObject?.passed,
+      });  
+    } else {
+      res.json({
+        'success': true,
+        'finished': sessionObject.finished,
+        'passed': sessionObject?.passed,
+      });
+    }
   } else {
     res.json({'success': false, 'error': 'interviewId doesnt exists'});
   }
@@ -77,12 +91,20 @@ app.get('/is-onboarding-finished', async (req, res) => {
 // Webhook to receive onboarding status, configure it in
 // incode dasboard > settings > webhook > onboarding status
 app.post('/webhook', async (req, res) => {
-    // Handle the received webhook data
-    const webhookData = JSON.parse(req.body.toString());
+  // Handle the received webhook data
+  const webhookData = JSON.parse(req.body.toString());
   
+  sessionObject = readSessionObject(webhookData.interviewId);
+
+  if(!sessionObject){
+    // we received a webhook but for a session we don't have in our DB
+  } else { 
     // Last Step of the onboarding, now you can ask for the score.
     if(webhookData.onboardingStatus==="ONBOARDING_FINISHED"){
+
       console.log('User finished onboarding');
+      sessionObject.finished = true;
+
       // Admin Token + ApiKey are needed for approving and fetching scores
       const adminHeaders = {
         'Content-Type': "application/json",
@@ -90,38 +112,41 @@ app.post('/webhook', async (req, res) => {
         'X-Incode-Hardware-Id': process.env.ADMIN_TOKEN,
         'api-version': '1.0'
       };
-  
-      const scoreUrl = `${process.env.API_URL}/omni/get/score`;
-      const onboardingScore = await doGet(scoreUrl, {id:webhookData.interviewId}, adminHeaders);
       
+      const scoreUrl = `${process.env.API_URL}/omni/get/score`;
+      let onboardingScore = {}
+      try {
+        onboardingScore = await doGet(scoreUrl, {id:webhookData.interviewId}, adminHeaders);
+      } catch(e) {
+        sessionObject.error=e.message;
+      }
       // Onboarding Score has a lot of information that might interest you
       // https://docs.incode.com/docs/omni-api/api/onboarding#fetch-scores
-    
-      if (onboardingScore.overall.status==='OK'){
+      sessionObject.score = onboardingScore;
+      if (onboardingScore?.overall?.status==='OK'){
+        // Session passed with OK here you would procced to save user data into
+        // your database or any other process your bussiness logic requires.
         console.log('User passed with OK');
-
-        // Session passed with OK here you would procced to save user data into your database or
-        // any other process your bussiness logic requires.
-        
-        sessionObject = readSessionObject(webhookData.interviewId);
-        sessionObject.score=onboardingScore;
-        sessionObject.finished=true;
-
-        writeSessionObject(sessionObject);
+        sessionObject.passed=true;
+      } else {
+        console.log('User didnt passed');
+        sessionObject.passed=false;
       }
     }
-    
-    // Process received data (for demonstration, just returning the received payload
-    // and include the timestamp)
-    response = {
-      timestamp: new Date().toISOString().slice(0, 19).replace('T', ' '),
-      success: true,
-      data: webhookData
-    }
-    res.status(200).send(response);
-
-    // Write to a log so you can debug it.
-    console.log(response);
+    writeSessionObject(sessionObject);  
+  }
+  
+  // Process received data (for demonstration, just returning the received payload
+  // and include the timestamp)
+  response = {
+    timestamp: new Date().toISOString().slice(0, 19).replace('T', ' '),
+    success: true,
+    data: webhookData
+  }
+  res.status(200).send(response);
+  
+  // Write to a log so you can debug it.
+  console.log(response);
 });
 
 // Webhook to receive onboarding status, configure it in
@@ -136,21 +161,21 @@ app.post('/approve', async (req, res) => {
     // Admin Token + ApiKey are needed for approving and fetching scores
     const adminHeaders = {
       'Content-Type': "application/json",
-      'x-api-key': process.env.API_KEY,
+      //'x-api-key': process.env.API_KEY,
       'X-Incode-Hardware-Id': process.env.ADMIN_TOKEN,
       'api-version': '1.0'
     };
-
+    
     const scoreUrl = `${process.env.API_URL}/omni/get/score`;
     const onboardingScore = await doGet(scoreUrl, {id:webhookData.interviewId}, adminHeaders);
     
     //Onboarding Score has a lot of information that might interest you https://docs.incode.com/docs/omni-api/api/onboarding#fetch-scores
-
+    
     if (onboardingScore.overall.status==='OK'){
- 
+      
       const approveUrl = `${process.env.API_URL}/omni/process/approve?interviewId=${webhookData.interviewId}`;
       const identityData = await doPost(approveUrl,{}, adminHeaders);
-     
+      
       response = {
         timestamp: new Date().toISOString().slice(0, 19).replace('T', ' '),
         success:true,
@@ -175,15 +200,15 @@ app.post('/approve', async (req, res) => {
       res.status(200).send(response);
       console.log(response);
     } else {
-       response = {
-         timestamp: new Date().toISOString().slice(0, 19).replace('T', ' '),
-         success: false,
-         error: "Session didn't PASS, identity was not created"
-       }
-       res.status(200).send(response);
-       console.log(response)
+      response = {
+        timestamp: new Date().toISOString().slice(0, 19).replace('T', ' '),
+        success: false,
+        error: "Session didn't PASS, identity was not created"
+      }
+      res.status(200).send(response);
+      console.log(response)
     }
-
+    
   } else {
     // Process received data (for demonstration, just returning the received payload
     // and include the timestamp)
@@ -193,7 +218,7 @@ app.post('/approve', async (req, res) => {
       data: JSON.parse(webhookData.toString())
     }
     res.status(200).send(response);
-
+    
     // Write to a log so you can debug it.
     console.log(response);
   }
@@ -208,13 +233,13 @@ app.post('/auth', async (req, res) => {
   
   const params = { transactionId, token, interviewToken };
   const verificationData = await doPost(verifyAttemptUrl, params, defaultHeader);
-
+  
   log = {
     timestamp: new Date().toISOString().slice(0, 19).replace('T', ' '),
     data: {...params,...verificationData}
   }
   res.status(200).send(verificationData);
-
+  
   // Write to a log so you can debug it.
   console.log(log);
 });
@@ -233,19 +258,24 @@ app.post('*', function(req, res){
 const doPost = async (url, bodyparams, headers) => {
   try {
     const response = await fetch(url, { method: 'POST', body: JSON.stringify(bodyparams), headers});
+    if (!response.ok) {
+      throw new Error('Request failed with code ' + response.status)
+    }
     return response.json();
-  } catch (e) {
-    console.log(`Warning:  HTTPPOST error.`, e);
+  } catch(e) {
+    throw new Error('HTTP Post Error: ' + e.message)
   }
 }
 
 const doGet = async (url, params, headers) => {
-  headers = headers;
   try {
     const response = await fetch(`${url}?` + new URLSearchParams(params), {method: 'GET', headers});
+    if (!response.ok) {
+      throw new Error('Request failed with code ' + response.status)
+    }
     return response.json();
-  } catch (e) {
-    console.log(`Warning:  HTTPGET error.`, e);
+  } catch(e) {
+    throw new Error('HTTP Get Error: ' + e.message)
   }
 }
 
