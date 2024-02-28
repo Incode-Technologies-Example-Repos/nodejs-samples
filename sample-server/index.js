@@ -57,7 +57,7 @@ app.get('/onboarding-url', async (req, res) => {
     // redirectionUrl: "https://example.com?custom_parameter=some+value",
     // externalCustomerId: "the id of the customer in your system",
   };
-
+  
   let startData = null;
   try{
     startData = await doPost(startUrl, startParams, defaultHeader);
@@ -88,15 +88,43 @@ app.get('/onboarding-url', async (req, res) => {
   res.json(session);
 });
 
+
+
 // Checks if an onboarding has been finished against a local method of Storage
-app.get('/fetch-score', async (req, res) => {
-  
+app.get('/onboarding-status', async (req, res) => {
   // Get the interviewId from query parameters
   const interviewId = req.query.interviewId;
   if (!interviewId) {
     res.status(400).send({success:false, error:'Missing required parameter interviewId'});
     return;
   } 
+  
+  const statusURL = `${process.env.API_URL}/omni/get/onboarding/status`;
+  try {
+    const response = await doGet(statusURL, {id:interviewId}, adminHeaders);
+    onboardingStatus = response.onboardingStatus;
+    res.status(200).send({success:true, onboardingStatus})
+  } catch(e) {
+    console.log(e.message);
+    res.status(500).send({success:false, error: e.message});
+  }
+});
+
+// Checks if an onboarding has been finished against a local method of Storage
+app.post('/fetch-score', async (req, res) => {
+  // Get the interviewId from query parameters
+  const {interviewId, token} = JSON.parse(req.body.toString());
+  
+  // const interviewId = req.query.interviewId;
+  if (!interviewId||!token) {
+    res.status(400).send({success:false, error:'Missing required body parameter interviewId or token'});
+    return;
+  }
+  
+  // We could fetch the score using the adminHeader, but by using the token
+  // we ensure that a malicious actor cannot get other users scores.
+  const sessionHeader = {...defaultHeader};
+  sessionHeader['X-Incode-Hardware-Id'] = token; 
   
   // First make sure the session is finished
   const statusURL = `${process.env.API_URL}/omni/get/onboarding/status`;
@@ -109,7 +137,7 @@ app.get('/fetch-score', async (req, res) => {
       // it could happen that a session is not finished at the exact time this call is done.
       // give it up to 10 tries/5 seconds, this method doesn't lock the thread.
       await new Promise(r => setTimeout(r, 500));
-      response = await doGet(statusURL, {id:interviewId}, adminHeaders);
+      response = await doGet(statusURL, {id:interviewId}, sessionHeader);
       onboardingStatus = response.onboardingStatus;
     } while(onboardingStatus!=='ONBOARDING_FINISHED' && ++tries<=10);
   } catch(e) {
@@ -126,7 +154,7 @@ app.get('/fetch-score', async (req, res) => {
   const scoreUrl = `${process.env.API_URL}/omni/get/score`;
   let onboardingScore = null
   try {
-    onboardingScore = await doGet(scoreUrl, {id:interviewId}, adminHeaders);
+    onboardingScore = await doGet(scoreUrl, {id:interviewId}, sessionHeader);
   } catch(e) {
     console.log(e.message);
     res.status(500).send({success:false, error: e.message});
@@ -173,7 +201,7 @@ app.post('/webhook', async (req, res) => {
       // your database or any other process your bussiness logic requires.
       console.log('User passed with OK');
     } else {
-      console.log('User didnt passed');
+      console.log('User did not passed');
     }
   }
   
