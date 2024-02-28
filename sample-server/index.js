@@ -1,7 +1,6 @@
 const express = require('express');
 const dotenv = require('dotenv');
 const cors = require('cors');
-const { writeFileSync, readFileSync } = require('fs');
 
 const app = express();
 dotenv.config();
@@ -16,6 +15,14 @@ const defaultHeader = {
   'api-version': '1.0'
 };
 
+// Admin Token + ApiKey are needed for approving and fetching scores
+const adminHeaders = {
+  'Content-Type': "application/json",
+  'x-api-key': process.env.API_KEY,
+  'X-Incode-Hardware-Id': process.env.ADMIN_TOKEN,
+  'api-version': '1.0'
+};
+
 // Call Incode's `omni/start` API to create an Incode session which will include a
 // token in the JSON response.
 app.get('/start', async (req, res) => {
@@ -27,9 +34,15 @@ app.get('/start', async (req, res) => {
     // redirectionUrl: "https://example.com?custom_parameter=some+value",
     // externalCustomerId: "the id of the customer in your system",
   };
-  const startData = await doPost(startUrl, startParams, defaultHeader);
-  const {token, interviewId} = startData;
-  res.json({token, interviewId});
+  try{
+    const startData = await doPost(startUrl, startParams, defaultHeader);
+    const {token, interviewId} = startData;
+    res.json({token, interviewId});
+  } catch(e) {
+    console.log(e.message);
+    res.status(500).send({success:false, error: e.message});
+    return;
+  }
 });
 
 // Calls incodes `omni/start` and then with the token calls `0/omni/onboarding-url`
@@ -44,13 +57,16 @@ app.get('/onboarding-url', async (req, res) => {
     // redirectionUrl: "https://example.com?custom_parameter=some+value",
     // externalCustomerId: "the id of the customer in your system",
   };
-  
-  const startData = await doPost(startUrl, startParams, defaultHeader);
+
+  let startData = null;
+  try{
+    startData = await doPost(startUrl, startParams, defaultHeader);
+  } catch(e) {
+    console.log(e.message);
+    res.status(500).send({success:false, error: e.message});
+    return;
+  }
   const {token, interviewId} = startData;
-  
-  const sessionObject = {interviewId, token, finished:false};
-  
-  writeSessionObject(sessionObject);
   
   const onboardingHeader = {
     'Content-Type': "application/json",
@@ -58,34 +74,77 @@ app.get('/onboarding-url', async (req, res) => {
     'x-api-key': process.env.API_KEY,
     'api-version': '1.0'
   };
-  
   const onboardingUrl = `${process.env.API_URL}/0/omni/onboarding-url`;
-  const onboardingUrlData = await doGet(onboardingUrl, {}, onboardingHeader);
-  session ={ token, interviewId, url: onboardingUrlData.url }
+  
+  let onboardingUrlData= null;
+  try{
+    onboardingUrlData = await doGet(onboardingUrl, {}, onboardingHeader);
+  } catch(e) {
+    console.log(e.message);
+    res.status(500).send({success:false, error: e.message});
+    return;
+  }
+  session ={ success:true, token, interviewId, url: onboardingUrlData.url }
   res.json(session);
 });
 
 // Checks if an onboarding has been finished against a local method of Storage
-app.get('/is-onboarding-finished', async (req, res) => {
-  sessionObject = readSessionObject(req.query.interviewId);
-  if (sessionObject) {  
-    if(sessionObject?.error){
-      res.json({
-        'success': false,
-        'finished': sessionObject.finished,
-        'error': sessionObject?.error,
-        'passed': sessionObject?.passed,
-      });  
-    } else {
-      res.json({
-        'success': true,
-        'finished': sessionObject.finished,
-        'passed': sessionObject?.passed,
-      });
-    }
-  } else {
-    res.json({'success': false, 'error': 'interviewId doesnt exists'});
+app.get('/fetch-score', async (req, res) => {
+  
+  // Get the interviewId from query parameters
+  const interviewId = req.query.interviewId;
+  if (!interviewId) {
+    res.status(400).send({success:false, error:'Missing required parameter interviewId'});
+    return;
+  } 
+  
+  // First make sure the session is finished
+  const statusURL = `${process.env.API_URL}/omni/get/onboarding/status`;
+  let tries = 0;
+  let response = null;
+  try {
+    do {
+      // If there are several after processes after the session finishes
+      // like goverment validations and other similar stuff
+      // it could happen that a session is not finished at the exact time this call is done.
+      // give it up to 10 tries/5 seconds, this method doesn't lock the thread.
+      await new Promise(r => setTimeout(r, 500));
+      response = await doGet(statusURL, {id:interviewId}, adminHeaders);
+      onboardingStatus = response.onboardingStatus;
+    } while(onboardingStatus!=='ONBOARDING_FINISHED' && ++tries<=10);
+  } catch(e) {
+    console.log(e.message);
+    res.status(500).send({success:false, error: e.message});
+    return;
   }
+  if( tries>10 ){
+    res.status(425).send({success:false, error: 'Session is not finished.'});
+    return;
+  }
+  
+  // Now let's find out the score
+  const scoreUrl = `${process.env.API_URL}/omni/get/score`;
+  let onboardingScore = null
+  try {
+    onboardingScore = await doGet(scoreUrl, {id:interviewId}, adminHeaders);
+  } catch(e) {
+    console.log(e.message);
+    res.status(500).send({success:false, error: e.message});
+    return;
+  }
+  
+  // Onboarding Score has a lot of information that might interest you
+  // https://docs.incode.com/docs/omni-api/api/onboarding#fetch-scores
+  if (onboardingScore?.overall?.status==='OK'){
+    // Session passed with OK here you would procced to save user data into
+    // your database or any other process your bussiness logic requires.
+    console.log('User passed with OK');
+    res.json({success:true, score: 'OK'});
+  } else {
+    console.log('User didnt passed');
+    res.json({success:true, score: 'FAIL'});
+  }
+  
 });
 
 // Webhook to receive onboarding status, configure it in
@@ -94,47 +153,30 @@ app.post('/webhook', async (req, res) => {
   // Handle the received webhook data
   const webhookData = JSON.parse(req.body.toString());
   
-  sessionObject = readSessionObject(webhookData.interviewId);
-
-  if(!sessionObject){
-    // we received a webhook but for a session we don't have in our DB
-  } else { 
-    // Last Step of the onboarding, now you can ask for the score.
-    if(webhookData.onboardingStatus==="ONBOARDING_FINISHED"){
-
-      console.log('User finished onboarding');
-      sessionObject.finished = true;
-
-      // Admin Token + ApiKey are needed for approving and fetching scores
-      const adminHeaders = {
-        'Content-Type': "application/json",
-        'x-api-key': process.env.API_KEY,
-        'X-Incode-Hardware-Id': process.env.ADMIN_TOKEN,
-        'api-version': '1.0'
-      };
-      
-      const scoreUrl = `${process.env.API_URL}/omni/get/score`;
-      let onboardingScore = {}
-      try {
-        onboardingScore = await doGet(scoreUrl, {id:webhookData.interviewId}, adminHeaders);
-      } catch(e) {
-        sessionObject.error=e.message;
-      }
-      // Onboarding Score has a lot of information that might interest you
-      // https://docs.incode.com/docs/omni-api/api/onboarding#fetch-scores
-      sessionObject.score = onboardingScore;
-      if (onboardingScore?.overall?.status==='OK'){
-        // Session passed with OK here you would procced to save user data into
-        // your database or any other process your bussiness logic requires.
-        console.log('User passed with OK');
-        sessionObject.passed=true;
-      } else {
-        console.log('User didnt passed');
-        sessionObject.passed=false;
-      }
+  // Last Step of the onboarding, now you can ask for the score.
+  if(webhookData.onboardingStatus==="ONBOARDING_FINISHED"){
+    
+    console.log('User finished onboarding');
+    
+    
+    const scoreUrl = `${process.env.API_URL}/omni/get/score`;
+    let onboardingScore = {}
+    try {
+      onboardingScore = await doGet(scoreUrl, {id:webhookData.interviewId}, adminHeaders);
+    } catch(e) {
+      console.log(e.message);
     }
-    writeSessionObject(sessionObject);  
+    // Onboarding Score has a lot of information that might interest you
+    // https://docs.incode.com/docs/omni-api/api/onboarding#fetch-scores
+    if (onboardingScore?.overall?.status==='OK'){
+      // Session passed with OK here you would procced to save user data into
+      // your database or any other process your bussiness logic requires.
+      console.log('User passed with OK');
+    } else {
+      console.log('User didnt passed');
+    }
   }
+  
   
   // Process received data (for demonstration, just returning the received payload
   // and include the timestamp)
@@ -244,8 +286,6 @@ app.post('/auth', async (req, res) => {
   console.log(log);
 });
 
-
-
 app.get('*', function(req, res){
   res.status(404).json({error: `Cannot GET ${req.url}`});
 });
@@ -276,27 +316,6 @@ const doGet = async (url, params, headers) => {
     return response.json();
   } catch(e) {
     throw new Error('HTTP Get Error: ' + e.message)
-  }
-}
-
-const writeSessionObject = (sessionObject) => {
-  const {interviewId} = sessionObject;
-  const path = `./sessions/${interviewId}.json`;
-  try {
-    writeFileSync(path, JSON.stringify(sessionObject, null, 2), 'utf8');
-    console.log('Data successfully saved to disk');
-  } catch (error) {
-    console.log('An error has occurred ', error);
-  }
-}
-
-const readSessionObject = (interviewId) => {
-  const path = `./sessions/${interviewId}.json`;
-  try {
-    const data = readFileSync(path);
-    return JSON.parse(data);
-  } catch (error) {
-    return false;
   }
 }
 
