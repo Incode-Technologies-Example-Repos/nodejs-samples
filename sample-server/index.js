@@ -118,31 +118,7 @@ app.get('/fetch-score', async (req, res) => {
     return;
   }
   
-  // First make sure the session is finished
-  const statusURL = `${process.env.API_URL}/omni/get/onboarding/status`;
-  let tries = 0;
-  let response = null;
-  try {
-    do {
-      // If there are several after processes after the session finishes
-      // like goverment validations and other similar stuff
-      // it could happen that a session is not finished at the exact time this call is done.
-      // give it up to 10 tries/5 seconds, this method doesn't lock the thread.
-      await new Promise(r => setTimeout(r, 500));
-      response = await doGet(statusURL, {id:interviewId}, adminHeaders);
-      onboardingStatus = response.onboardingStatus;
-    } while(onboardingStatus!=='ONBOARDING_FINISHED' && ++tries<=10);
-  } catch(e) {
-    console.log(e.message);
-    res.status(500).send({success:false, error: e.message});
-    return;
-  }
-  if( tries>10 ){
-    res.status(425).send({success:false, error: 'Session is not finished.'});
-    return;
-  }
-  
-  // Now let's find out the score
+  //Let's find out the score
   const scoreUrl = `${process.env.API_URL}/omni/get/score`;
   let onboardingScore = null
   try {
