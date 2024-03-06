@@ -6,6 +6,14 @@
 
 - GET `/onboarding-url`: Calls incodes `/omni/start` and then with the token calls `/0/omni/onboarding-url` to retrieve the unique onboarding-url for the newly created session.
 
+- GET `/onboarding-status`: Calls incodes `/omni/get/onboarding/status` API and return the onboarding status.
+
+Expects `interviewId` as query param.
+
+- GET `/fetch-score`: Calls incodes `/omni/get/score` API and return the score.
+
+Expects `interviewId` as query param.
+
 - POST `/auth`: Receives the information about a faceMatch attempt and verifies if it was correct and has not been tampered.
 
 - POST `/webhook`: Example webhook that reads the json data and return it back a response, from here you could fetch scores or OCR data when the status is ONBOARDING_FINISHED
@@ -54,7 +62,16 @@ docker-compose --env-file ./.env up
 
 The server will accept petitions on `http://localhost:3000/`
 
-### Expose the server to the internet for frontend testing with ngrok
+### Frontend development
+
+For development most of our frontend samples have a reverse proxy configured to serve `http://localhost:3000/` on `https://<your-ip>:5731/api`
+
+That way you avoid all problems related to CORS.
+
+### Webhook development
+
+For our systems to reach your server, you will need to expose the server to the internet with ngrok
+
 For your frontend to properly work in tandem with this server on your mobile phone for testing, you will need a public url with proper SSL configured, by far the easiest way to acchieve this with an ngrok account properly configured on your computer. You can visit `https://ngrok.com` to make a free account and do a quick setup.
 
 Then simply run the nodemon script, it will start the server in port 3000 and restart whenever a file is changed, leave it running.
