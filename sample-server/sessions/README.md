@@ -1,1 +1,0 @@
-Here we store the sessions for this server, in the real life you would use a database.

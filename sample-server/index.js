@@ -16,7 +16,7 @@ const defaultHeader = {
 };
 
 // Admin Token + ApiKey are needed for approving and fetching scores
-const adminHeaders = {
+const adminHeader = {
   'Content-Type': "application/json",
   'x-api-key': process.env.API_KEY,
   'X-Incode-Hardware-Id': process.env.ADMIN_TOKEN,
@@ -100,7 +100,7 @@ app.get('/onboarding-status', async (req, res) => {
   
   const statusURL = `${process.env.API_URL}/omni/get/onboarding/status`;
   try {
-    const response = await doGet(statusURL, {id:interviewId}, adminHeaders);
+    const response = await doGet(statusURL, {id:interviewId}, adminHeader);
     onboardingStatus = response.onboardingStatus;
     res.status(200).send({success:true, onboardingStatus})
   } catch(e) {
@@ -122,7 +122,7 @@ app.get('/fetch-score', async (req, res) => {
   const scoreUrl = `${process.env.API_URL}/omni/get/score`;
   let onboardingScore = null
   try {
-    onboardingScore = await doGet(scoreUrl, {id:interviewId}, adminHeaders);
+    onboardingScore = await doGet(scoreUrl, {id:interviewId}, adminHeader);
   } catch(e) {
     console.log(e.message);
     res.status(500).send({success:false, error: e.message});
@@ -158,7 +158,7 @@ app.post('/webhook', async (req, res) => {
     const scoreUrl = `${process.env.API_URL}/omni/get/score`;
     let onboardingScore = {}
     try {
-      onboardingScore = await doGet(scoreUrl, {id:webhookData.interviewId}, adminHeaders);
+      onboardingScore = await doGet(scoreUrl, {id:webhookData.interviewId}, adminHeader);
     } catch(e) {
       console.log(e.message);
     }
@@ -197,7 +197,7 @@ app.post('/approve', async (req, res) => {
   
   if(webhookData.onboardingStatus==="ONBOARDING_FINISHED"){
     // Admin Token + ApiKey are needed for approving and fetching scores
-    const adminHeaders = {
+    const adminHeader = {
       'Content-Type': "application/json",
       //'x-api-key': process.env.API_KEY,
       'X-Incode-Hardware-Id': process.env.ADMIN_TOKEN,
@@ -205,14 +205,14 @@ app.post('/approve', async (req, res) => {
     };
     
     const scoreUrl = `${process.env.API_URL}/omni/get/score`;
-    const onboardingScore = await doGet(scoreUrl, {id:webhookData.interviewId}, adminHeaders);
+    const onboardingScore = await doGet(scoreUrl, {id:webhookData.interviewId}, adminHeader);
     
     //Onboarding Score has a lot of information that might interest you https://docs.incode.com/docs/omni-api/api/onboarding#fetch-scores
     
     if (onboardingScore.overall.status==='OK'){
       
       const approveUrl = `${process.env.API_URL}/omni/process/approve?interviewId=${webhookData.interviewId}`;
-      const identityData = await doPost(approveUrl,{}, adminHeaders);
+      const identityData = await doPost(approveUrl,{}, adminHeader);
       
       response = {
         timestamp: new Date().toISOString().slice(0, 19).replace('T', ' '),
@@ -267,11 +267,17 @@ app.post('/approve', async (req, res) => {
 app.post('/auth', async (req, res) => {
   const faceMatchData = JSON.parse(req.body.toString());
   const {transactionId, token, interviewToken} = faceMatchData;
-  const verifyAttemptUrl = `${process.env.API_URL}/omni/auth-attempt/verify`;
+  const verifyAttemptUrl = `${process.env.API_URL}/omni/authentication/verify`;
   
   const params = { transactionId, token, interviewToken };
-  const verificationData = await doPost(verifyAttemptUrl, params, defaultHeader);
-  
+  let verificationData={};
+  try{
+    verificationData = await doPost(verifyAttemptUrl, params, adminHeader);
+  } catch(e) {
+    console.log(e.message);
+    res.status(500).send({success:false, error: e.message});
+    return;
+  }
   log = {
     timestamp: new Date().toISOString().slice(0, 19).replace('T', ' '),
     data: {...params,...verificationData}
