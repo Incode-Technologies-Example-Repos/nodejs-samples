@@ -1,6 +1,8 @@
 const express = require('express');
 const dotenv = require('dotenv');
 const cors = require('cors');
+const { v4: uuidv4, validate: isUUID } = require('uuid');
+const fs = require('node:fs');
 
 const app = express();
 dotenv.config();
@@ -26,6 +28,21 @@ const adminHeader = {
 // Call Incode's `omni/start` API to create an Incode session which will include a
 // token in the JSON response.
 app.get('/start', async (req, res) => {
+  let uuidParam = req.query.uuid;
+  // We retrieve a session that was already started and from which we have stored.
+  if (uuidParam) {
+    try {
+      const session = readSession(uuidParam);
+      res.json(session);
+    } catch (e) {
+      res.status(400).send({success:false, error: e.message});
+    }
+    return;
+  }
+
+  // We create a new session
+  uuid = uuidv4();
+
   const startUrl = `${process.env.API_URL}/omni/start`;
   const startParams = {
     configurationId: process.env.FLOW_ID,
@@ -37,7 +54,8 @@ app.get('/start', async (req, res) => {
   try{
     const startData = await doPost(startUrl, startParams, defaultHeader);
     const {token, interviewId} = startData;
-    res.json({token, interviewId});
+    writeSession(uuid, {token, interviewId, uuid});
+    res.json({token, interviewId, uuid});
   } catch(e) {
     console.log(e.message);
     res.status(500).send({success:false, error: e.message});
@@ -318,6 +336,27 @@ const doGet = async (url, params, headers) => {
     return response.json();
   } catch(e) {
     throw new Error('HTTP Get Error: ' + e.message)
+  }
+}
+
+function writeSession(uuid, data){
+  const content = JSON.stringify(data, null, '  ');
+  try {
+    fs.writeFileSync(`sessions/${uuid}.json`, content);
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+function readSession(uuid){
+  if(!isUUID(uuid) || !fs.existsSync(`sessions/${uuid}.json`)){
+    throw new Error('Invalid uuid');
+  }
+  const rawData = fs.readFileSync(`sessions/${uuid}.json`,{ encoding: 'utf8', flag: 'r' });
+  try {
+    return JSON.parse(rawData);
+  } catch(e){
+    throw new Error('Session data corrupted');
   }
 }
 
