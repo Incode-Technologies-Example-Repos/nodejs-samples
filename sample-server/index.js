@@ -3,6 +3,7 @@ const dotenv = require('dotenv');
 const cors = require('cors');
 const { v4: uuidv4, validate: isUUID } = require('uuid');
 const fs = require('node:fs');
+const pdf2base64 = require('pdf-to-base64');
 
 const app = express();
 dotenv.config();
@@ -39,10 +40,10 @@ app.get('/start', async (req, res) => {
     }
     return;
   }
-
+  
   // We create a new session
   uuid = uuidv4();
-
+  
   const startUrl = `${process.env.API_URL}/omni/start`;
   const startParams = {
     configurationId: process.env.FLOW_ID,
@@ -301,6 +302,83 @@ app.post('/auth', async (req, res) => {
     data: {...params,...verificationData}
   }
   res.status(200).send(verificationData);
+  
+  // Write to a log so you can debug it.
+  console.log(log);
+});
+
+// Sign the contract with the signature stored at
+// the user session and calculates NOM151 signature
+// return both the signed document and the NOM151 signature.
+app.post('/sign-contract', async (req, res) => {
+  // here we are consuming the data from the body fo the request
+  // but you might already have this stored in your database
+  // if you save tokens at session `/start`, pick the strateggy
+  // that works best for you.
+  const sessionData = JSON.parse(req.body.toString());
+  const {interviewId, uuid, token} = sessionData;
+  
+  let contractHeader={...defaultHeader};
+  contractHeader['X-Incode-Hardware-Id'] = token;
+  
+  const base64Image = await pdf2base64("contract.pdf");
+  const uploadContractParams = {base64Image};
+  
+  const uploadContractURL = `${process.env.API_URL}/omni/add/document/v2?type=contract`;
+  const signContractUrl = `${process.env.API_URL}/omni/attach-signature-to-pdf/v2`;
+  
+  let contractData={};
+  let signatureData={};
+  try{
+    contractData = await doPost(uploadContractURL, uploadContractParams, contractHeader);
+    /**
+    * contractData": {
+    *   "success": true,
+    *   "sessionStatus": "Alive",
+    *   "additionalInformation": {
+    *     "contractId": "de575d2b-5132-4548-8b35-09ccec5094d3#Contract1710900917200"
+    *   }
+    * }
+    **/
+    const contractId = contractData?.additionalInformation.contractId;
+    const signContractParams = {
+      "signaturePositionsOnContracts": {
+        [contractId]: [
+          {
+            "x": 100,
+            "y": 100,
+            "height": 200,
+            "pageNumber": 1,
+            "orientation": "ORIENTATION_NORMAL"
+          }
+        ]
+      },
+      "includeSignedDocumentInResponse": true,
+      "includeNom151SignatureInResponse": true,
+      "includeSignedDocumentWithNom151InResponse": false
+    }
+    
+    signatureData = await doPost(signContractUrl, signContractParams, contractHeader);
+    /**
+     * "signatureData": {
+     *   "success": true,
+     *   "sessionStatus": "Alive",
+     *   "additionalInformation": {
+     *     "signedDocumentNom151": "MIIW/jAVAgEAMBAMDk9wZXJhdGlvbiBPa...bcYQbOmosShBZOSaLUSeXHBcp1UgETRVpZPaCX6ohSMPZFDFSPXTx3R9V14eIME7N9F+pqgJcw==",
+     *     "signedDocumentBase64": "JVBERi0xLjcKJeLjz9MKMSAwIG9iago8PC9U...hODhlYWViOGUyMDkwYTQ+XT4+CiVpVGV4dC01LjUuMTIKc3RhcnR4cmVmCjQyNDcwCiUlRU9GCg=="
+     *   }
+     * }
+     */
+  } catch(e) {
+    console.log(e.message);
+    res.status(500).send({success:false, error: e.message});
+    return;
+  }
+  log = {
+    timestamp: new Date().toISOString().slice(0, 19).replace('T', ' '),
+    data: contractData
+  }
+  res.status(200).send({interviewId, uuid, token, contractData, signatureData});
   
   // Write to a log so you can debug it.
   console.log(log);
