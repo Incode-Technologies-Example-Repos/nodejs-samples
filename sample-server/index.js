@@ -138,9 +138,9 @@ app.get('/fetch-score', async (req, res) => {
   }
 
   //Get the token of the session from the headers
-  let token = req.headers["x-incode-hardware-id"];
+  let token = req.headers["x-token"];
   if(!token) {
-    res.status(400).send({success:false, error:'Missing required header X-Incode-Hardware-Id'});
+    res.status(400).send({success:false, error:'Missing required header X-Token'});
     return;
   }
   adminHeader['X-Incode-Hardware-Id'] = token;
