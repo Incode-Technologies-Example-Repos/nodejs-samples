@@ -136,7 +136,15 @@ app.get('/fetch-score', async (req, res) => {
     res.status(400).send({success:false, error:'Missing required parameter interviewId'});
     return;
   }
-  
+
+  //Get the token of the session from the headers
+  let token = req.headers["x-token"];
+  if(!token) {
+    res.status(400).send({success:false, error:'Missing required header X-Token'});
+    return;
+  }
+  adminHeader['X-Incode-Hardware-Id'] = token;
+
   //Let's find out the score
   const scoreUrl = `${process.env.API_URL}/omni/get/score`;
   let onboardingScore = null
