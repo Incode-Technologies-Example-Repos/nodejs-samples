@@ -405,6 +405,7 @@ const doPost = async (url, bodyparams, headers) => {
   try {
     const response = await fetch(url, { method: 'POST', body: JSON.stringify(bodyparams), headers});
     if (!response.ok) {
+      //console.log(await response.json());
       throw new Error('Request failed with code ' + response.status)
     }
     return response.json();
@@ -417,6 +418,7 @@ const doGet = async (url, params, headers) => {
   try {
     const response = await fetch(`${url}?` + new URLSearchParams(params), {method: 'GET', headers});
     if (!response.ok) {
+      //console.log(await response.json());
       throw new Error('Request failed with code ' + response.status)
     }
     return response.json();
