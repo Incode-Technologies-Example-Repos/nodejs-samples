@@ -18,7 +18,7 @@ const defaultHeader = {
   'api-version': '1.0'
 };
 
-// Admin Token + ApiKey are needed for approving and fetching scores
+// Admin Token + ApiKey are needed for approving
 const adminHeader = {
   'Content-Type': "application/json",
   'x-api-key': process.env.API_KEY,
@@ -86,12 +86,9 @@ app.get('/onboarding-url', async (req, res) => {
   }
   const {token, interviewId} = startData;
   
-  const onboardingHeader = {
-    'Content-Type': "application/json",
-    'X-Incode-Hardware-Id': startData.token,
-    'x-api-key': process.env.API_KEY,
-    'api-version': '1.0'
-  };
+  const onboardingHeader = {...defaultHeader};
+  onboardingHeader['X-Incode-Hardware-Id'] = startData.token;
+
   const onboardingUrl = `${process.env.API_URL}/0/omni/onboarding-url`;
   
   let onboardingUrlData= null;
@@ -139,17 +136,19 @@ app.get('/fetch-score', async (req, res) => {
 
   //Get the token of the session from the headers
   let token = req.headers["x-token"];
-  if(!token) {
+  if (!token) {
     res.status(400).send({success:false, error:'Missing required header X-Token'});
     return;
   }
-  adminHeader['X-Incode-Hardware-Id'] = token;
+
+  scoreHeader = {...defaultHeader};
+  scoreHeader['X-Incode-Hardware-Id'] = token;
 
   //Let's find out the score
   const scoreUrl = `${process.env.API_URL}/omni/get/score`;
   let onboardingScore = null
   try {
-    onboardingScore = await doGet(scoreUrl, {id:interviewId}, adminHeader);
+    onboardingScore = await doGet(scoreUrl, {id:interviewId}, scoreHeader);
   } catch(e) {
     console.log(e.message);
     res.status(500).send({success:false, error: e.message});
@@ -405,6 +404,7 @@ const doPost = async (url, bodyparams, headers) => {
   try {
     const response = await fetch(url, { method: 'POST', body: JSON.stringify(bodyparams), headers});
     if (!response.ok) {
+      //console.log(await response.json());
       throw new Error('Request failed with code ' + response.status)
     }
     return response.json();
@@ -417,6 +417,7 @@ const doGet = async (url, params, headers) => {
   try {
     const response = await fetch(`${url}?` + new URLSearchParams(params), {method: 'GET', headers});
     if (!response.ok) {
+      //console.log(await response.json());
       throw new Error('Request failed with code ' + response.status)
     }
     return response.json();
