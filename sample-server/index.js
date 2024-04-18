@@ -26,6 +26,7 @@ const adminHeader = {
   'api-version': '1.0'
 };
 
+/* UNUSED IN THIS EXAMPLE
 // Call Incode's `omni/start` API to create an Incode session which will include a
 // token in the JSON response.
 app.get('/start', async (req, res) => {
@@ -63,6 +64,7 @@ app.get('/start', async (req, res) => {
     return;
   }
 });
+*/
 
 // Calls incodes `omni/start` and then with the token calls `0/omni/onboarding-url`
 // to retrieve the unique onboarding-url for the newly created session.
@@ -72,6 +74,7 @@ app.get('/onboarding-url', async (req, res) => {
     configurationId: process.env.FLOW_ID,
     countryCode: "ALL",
     language: "en-US",
+    redirectionUrl: "https://192.168.68.110:5173/finished.html"
     // redirectionUrl: "https://example.com?custom_parameter=some+value",
     // externalCustomerId: "the id of the customer in your system",
   };
@@ -104,7 +107,7 @@ app.get('/onboarding-url', async (req, res) => {
 });
 
 
-
+/* UNUSED IN THIS EXAMPLE
 // Checks if an onboarding has been finished against a local method of Storage
 app.get('/onboarding-status', async (req, res) => {
   // Get the interviewId from query parameters
@@ -124,6 +127,7 @@ app.get('/onboarding-status', async (req, res) => {
     res.status(500).send({success:false, error: e.message});
   }
 });
+*/
 
 // Checks if an onboarding has been finished against a local method of Storage
 app.get('/fetch-score', async (req, res) => {
@@ -145,7 +149,7 @@ app.get('/fetch-score', async (req, res) => {
   scoreHeader['X-Incode-Hardware-Id'] = token;
 
   //Let's find out the score
-  const scoreUrl = `${process.env.API_URL}/omni/get/score`;
+  const scoreUrl = `${process.env.API_URL}/0/omni/get/score`;
   let onboardingScore = null
   try {
     onboardingScore = await doGet(scoreUrl, {id:interviewId}, scoreHeader);
@@ -157,18 +161,45 @@ app.get('/fetch-score', async (req, res) => {
   
   // Onboarding Score has a lot of information that might interest you
   // https://docs.incode.com/docs/omni-api/api/onboarding#fetch-scores
-  if (onboardingScore?.overall?.status==='OK'){
-    // Session passed with OK here you would procced to save user data into
-    // your database or any other process your bussiness logic requires.
-    console.log('User passed with OK');
-    res.json({success:true, score: 'OK'});
-  } else {
+  if (onboardingScore?.overall?.status!=='OK'){
     console.log("User didn't passed");
     res.json({success:true, score: 'FAIL'});
+    return;
   }
-  
+
+  //Let's extract OCR data (not needed but you might want to do something with it)
+  // const ocrUrl = `${process.env.API_URL}/0/omni/get/ocr-data/v2`;
+  // let onboardingOcr = null
+  // try {
+  //   onboardingOcr = await doGet(ocrUrl, {id:interviewId}, adminHeader);
+  // } catch(e) {
+  //   console.log(e.message);
+  //   res.status(500).send({success:false, error: e.message});
+  //   return;
+  // }
+  // const {ocrData} = onboardingOcr;
+ 
+ 
+  // User passed id and face validation, now it's time to add it to the watchlist
+  const watchlistURL = `${process.env.API_URL}/omni/add/watchlist/session`;
+  watchlistParams= {
+    "sessionId": interviewId,
+    "watchlistType": "BLACKLIST"
+  }
+  let watchlistData = null;
+  try{
+    watchlistData = await doPost(watchlistURL, watchlistParams, adminHeader);
+  } catch(e) {
+    console.log(e.message);
+    res.status(500).send({success:false, error: e.message});
+    return;
+  }
+  console.log('User passed with OK');
+  console.log("User added to the watchlist", watchlistData);
+  res.json({success:true, score: 'OK'});
 });
 
+/* UNUSED ON THIS EXAMPLE
 // Webhook to receive onboarding status, configure it in
 // incode dasboard > settings > webhook > onboarding status
 app.post('/webhook', async (req, res) => {
@@ -212,7 +243,9 @@ app.post('/webhook', async (req, res) => {
   // Write to a log so you can debug it.
   console.log(response);
 });
+*/
 
+/* UNUSED ON THIS EXAMPLE
 // Webhook to receive onboarding status, configure it in
 // incode dasboard > settings > webhook > onboarding status
 // This endpoint will auto-approve(create an identity) for
@@ -287,7 +320,9 @@ app.post('/approve', async (req, res) => {
     console.log(response);
   }
 });
+*/
 
+/* UNUSED ON THIS EXAMPLE
 // Receives the information about a faceMatch attempt and verifies
 // if it was correct and has not been tampered.
 app.post('/auth', async (req, res) => {
@@ -313,83 +348,8 @@ app.post('/auth', async (req, res) => {
   // Write to a log so you can debug it.
   console.log(log);
 });
+*/
 
-// Sign the contract with the signature stored at
-// the user session and calculates NOM151 signature
-// return both the signed document and the NOM151 signature.
-app.post('/sign-contract', async (req, res) => {
-  // here we are consuming the data from the body fo the request
-  // but you might already have this stored in your database
-  // if you save tokens at session `/start`, pick the strateggy
-  // that works best for you.
-  const sessionData = JSON.parse(req.body.toString());
-  const {interviewId, uuid, token} = sessionData;
-  
-  let contractHeader={...defaultHeader};
-  contractHeader['X-Incode-Hardware-Id'] = token;
-  
-  const base64Image = await pdf2base64("contract.pdf");
-  const uploadContractParams = {base64Image};
-  
-  const uploadContractURL = `${process.env.API_URL}/omni/add/document/v2?type=contract`;
-  const signContractUrl = `${process.env.API_URL}/omni/attach-signature-to-pdf/v2`;
-  
-  let contractData={};
-  let signatureData={};
-  try{
-    contractData = await doPost(uploadContractURL, uploadContractParams, contractHeader);
-    /**
-    * contractData": {
-    *   "success": true,
-    *   "sessionStatus": "Alive",
-    *   "additionalInformation": {
-    *     "contractId": "de575d2b-5132-4548-8b35-09ccec5094d3#Contract1710900917200"
-    *   }
-    * }
-    **/
-    const contractId = contractData?.additionalInformation.contractId;
-    const signContractParams = {
-      "signaturePositionsOnContracts": {
-        [contractId]: [
-          {
-            "x": 100,
-            "y": 100,
-            "height": 200,
-            "pageNumber": 1,
-            "orientation": "ORIENTATION_NORMAL"
-          }
-        ]
-      },
-      "includeSignedDocumentInResponse": true,
-      "includeNom151SignatureInResponse": true,
-      "includeSignedDocumentWithNom151InResponse": false
-    }
-    
-    signatureData = await doPost(signContractUrl, signContractParams, contractHeader);
-    /**
-     * "signatureData": {
-     *   "success": true,
-     *   "sessionStatus": "Alive",
-     *   "additionalInformation": {
-     *     "signedDocumentNom151": "MIIW/jAVAgEAMBAMDk9wZXJhdGlvbiBPa...bcYQbOmosShBZOSaLUSeXHBcp1UgETRVpZPaCX6ohSMPZFDFSPXTx3R9V14eIME7N9F+pqgJcw==",
-     *     "signedDocumentBase64": "JVBERi0xLjcKJeLjz9MKMSAwIG9iago8PC9U...hODhlYWViOGUyMDkwYTQ+XT4+CiVpVGV4dC01LjUuMTIKc3RhcnR4cmVmCjQyNDcwCiUlRU9GCg=="
-     *   }
-     * }
-     */
-  } catch(e) {
-    console.log(e.message);
-    res.status(500).send({success:false, error: e.message});
-    return;
-  }
-  log = {
-    timestamp: new Date().toISOString().slice(0, 19).replace('T', ' '),
-    data: contractData
-  }
-  res.status(200).send({interviewId, uuid, token, contractData, signatureData});
-  
-  // Write to a log so you can debug it.
-  console.log(log);
-});
 
 app.get('*', function(req, res){
   res.status(404).json({error: `Cannot GET ${req.url}`});
@@ -426,6 +386,7 @@ const doGet = async (url, params, headers) => {
   }
 }
 
+/* UNUSED ON THIS EXAMPLE
 function writeSession(uuid, data){
   const content = JSON.stringify(data, null, '  ');
   try {
@@ -434,7 +395,9 @@ function writeSession(uuid, data){
     console.error(err);
   }
 }
+*/
 
+/* UNUSED ON THIS EXAMPLE
 function readSession(uuid){
   if(!isUUID(uuid) || !fs.existsSync(`sessions/${uuid}.json`)){
     throw new Error('Invalid uuid');
@@ -446,6 +409,7 @@ function readSession(uuid){
     throw new Error('Session data corrupted');
   }
 }
+*/
 
 // Listen for HTTP
 const httpPort = 3000;
