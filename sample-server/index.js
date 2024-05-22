@@ -29,20 +29,21 @@ const adminHeader = {
 // Call Incode's `omni/start` API to create an Incode session which will include a
 // token in the JSON response.
 app.get('/start', async (req, res) => {
-  let uuidParam = req.query.uuid;
+  let uniqueId = req.query.uniqueId;
   // We retrieve a session that was already started and from which we have stored.
-  if (uuidParam) {
+  if (uniqueId) {
     try {
-      const session = readSession(uuidParam);
-      res.json(session);
+      const { token } = readSession(uniqueId);
+      // The interviewId is also saved in the session, but you shouldn't return it to the frontend.
+      res.json({token, uniqueId});
     } catch (e) {
       res.status(400).send({success:false, error: e.message});
     }
     return;
   }
   
-  // We create a new session
-  uuid = uuidv4();
+  // We create a new random uniqueId to associate the session
+  uniqueId = uuidv4();
   
   const startUrl = `${process.env.API_URL}/omni/start`;
   const startParams = {
@@ -55,8 +56,10 @@ app.get('/start', async (req, res) => {
   try{
     const startData = await doPost(startUrl, startParams, defaultHeader);
     const {token, interviewId} = startData;
-    writeSession(uuid, {token, interviewId, uuid});
-    res.json({token, interviewId, uuid});
+    // To the session we save the interviewId for internal purposes
+    writeSession(uniqueId, {token, interviewId, uniqueId});
+    // But we never return it to the frontend
+    res.json({token, uniqueId});
   } catch(e) {
     console.log(e.message);
     res.status(500).send({success:false, error: e.message});
@@ -323,7 +326,7 @@ app.post('/sign-contract', async (req, res) => {
   // if you save tokens at session `/start`, pick the strateggy
   // that works best for you.
   const sessionData = JSON.parse(req.body.toString());
-  const {interviewId, uuid, token} = sessionData;
+  const {interviewId, token} = sessionData;
   
   let contractHeader={...defaultHeader};
   contractHeader['X-Incode-Hardware-Id'] = token;
@@ -385,7 +388,7 @@ app.post('/sign-contract', async (req, res) => {
     timestamp: new Date().toISOString().slice(0, 19).replace('T', ' '),
     data: contractData
   }
-  res.status(200).send({interviewId, uuid, token, contractData, signatureData});
+  res.status(200).send({interviewId, token, contractData, signatureData});
   
   // Write to a log so you can debug it.
   console.log(log);
@@ -426,26 +429,32 @@ const doGet = async (url, params, headers) => {
   }
 }
 
-function writeSession(uuid, data){
+/* Session Helper Functions
+ * For this example we simply save the session as json file in the /sessions folder
+ * in a real application you would save this information in a database. 
+ **/
+
+function writeSession(uniqueId, data){
   const content = JSON.stringify(data, null, '  ');
   try {
-    fs.writeFileSync(`sessions/${uuid}.json`, content);
+    fs.writeFileSync(`sessions/${uniqueId}.json`, content);
   } catch (err) {
     console.error(err);
   }
 }
 
-function readSession(uuid){
-  if(!isUUID(uuid) || !fs.existsSync(`sessions/${uuid}.json`)){
-    throw new Error('Invalid uuid');
+function readSession(uniqueId){
+  if(!isUUID(uniqueId) || !fs.existsSync(`sessions/${uniqueId}.json`)){
+    throw new Error('Invalid uniqueId');
   }
-  const rawData = fs.readFileSync(`sessions/${uuid}.json`,{ encoding: 'utf8', flag: 'r' });
+  const rawData = fs.readFileSync(`sessions/${uniqueId}.json`,{ encoding: 'utf8', flag: 'r' });
   try {
     return JSON.parse(rawData);
   } catch(e){
     throw new Error('Session data corrupted');
   }
 }
+/* End Session Helper Functions **/
 
 // Listen for HTTP
 const httpPort = 3000;
