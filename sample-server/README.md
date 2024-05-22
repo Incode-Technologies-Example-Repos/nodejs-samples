@@ -2,11 +2,11 @@
 
 ## Endpoints
 
-- GET `/start`: Call Incode's `/omni/start` API to create an Incode session which will include a token in the JSON response. This token can be shared with Incode SDK client apps to do token based initialization, which is a best practice.
+- GET `/start`: Call Incode's `/omni/start` API to create an Incode session which will include a `token` in the JSON response. This token can be shared with Incode SDK client apps to do token based initialization, which is a best practice.
 
 It also performs basic storage of sessions in the `sessions` directory to help implement `renderRedirectToMobile`in frontend.
 
-At session generation it will generate an `uuid` and save the session in `session/<UUID>.json`, later if you call `/start` again passing a valid `uuid` it will retrieve the stored session instead of creating a new one.
+At session generation it will generate an `uniqueId` and save the session in `session/<uniqueId>.json`, later if you call `/start` again passing a valid `uniqueId` it will retrieve the stored session instead of creating a new one.
 
 - GET `/onboarding-url`: Calls incodes `/omni/start` and then with the token calls `/0/omni/onboarding-url` to retrieve the unique onboarding-url for the newly created session.
 
@@ -94,7 +94,7 @@ Open the `Forwarding` adress in a web browser. The URL should look similar to th
 
 Now you should be able to visit the following routes to receive the associated payloads:
 1. `https://yourforwardingurl.app/start`
-2. `https://yourforwardingurl.app/start?uuid=0e810732-6e7e-4512-aaa5-1ae2e1f8df46`
+2. `https://yourforwardingurl.app/start?uniqueId=0e810732-6e7e-4512-aaa5-1ae2e1f8df46`
 3. `https://yourforwardingurl.app/onboarding-url`
 4. `https://yourforwardingurl.app/onboarding-url?redirectionUrl=https%3A%2F%2Fexample.com%2F`
 
